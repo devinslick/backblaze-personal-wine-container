@@ -90,7 +90,36 @@ fetch_and_install() {
 
 }
 
+apply_wine_network_tweaks() {
+    if [ "${OPTIMIZE_NETWORK:-true}" != "true" ]; then
+        return
+    fi
+    log_message "PERF: Applying Wine network performance tweaks"
+
+    # Increase Winsock default send/receive buffer sizes to 256KB.
+    # The Backblaze client inherits these when opening sockets, allowing
+    # larger in-flight data and better throughput on high-latency links.
+    wine64 reg add "HKLM\\SYSTEM\\CurrentControlSet\\Services\\AFD\\Parameters" \
+        /v DefaultSendWindow /t REG_DWORD /d 262144 /f 2>/dev/null || true
+    wine64 reg add "HKLM\\SYSTEM\\CurrentControlSet\\Services\\AFD\\Parameters" \
+        /v DefaultReceiveWindow /t REG_DWORD /d 262144 /f 2>/dev/null || true
+
+    # Enable TCP window scaling and timestamps (RFC 1323).
+    # Allows TCP windows > 64KB for better WAN throughput.
+    wine64 reg add "HKLM\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters" \
+        /v Tcp1323Opts /t REG_DWORD /d 3 /f 2>/dev/null || true
+    wine64 reg add "HKLM\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters" \
+        /v GlobalMaxTcpWindowSize /t REG_DWORD /d 16777216 /f 2>/dev/null || true
+
+    # Enable Selective ACK for better loss recovery.
+    wine64 reg add "HKLM\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters" \
+        /v SackOpts /t REG_DWORD /d 1 /f 2>/dev/null || true
+
+    log_message "PERF: Wine network tweaks applied"
+}
+
 start_app() {
+    apply_wine_network_tweaks
     local version
     version=$(cat "$local_version_file" 2>/dev/null || echo "unknown")
     log_message "STARTAPP: Starting Backblaze version $version"

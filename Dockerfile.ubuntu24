@@ -8,6 +8,7 @@ ENV DISABLE_AUTOUPDATE="true"
 ENV DISABLE_VIRTUAL_DESKTOP="false"
 ENV DISPLAY_WIDTH="900"
 ENV DISPLAY_HEIGHT="700"
+ENV OPTIMIZE_NETWORK="true"
 ENV WINEDEBUG="-all"
 ENV DISPLAY=":0"
 
@@ -33,4 +34,5 @@ HEALTHCHECK --interval=60s --timeout=5s --start-period=120s --retries=3 \
     CMD ss -ltn | grep -q ':5900' || exit 1
 
 COPY rootfs/ /
-RUN chmod +x /startapp.sh
+RUN chmod +x /startapp.sh && \
+    chmod +x /etc/cont-init.d/99-optimize-network.sh

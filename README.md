@@ -34,6 +34,7 @@ It runs the Backblaze client and starts a virtual X server and a VNC server with
          * [VNC Password](#vnc-password)
          * [DH Parameters](#dh-parameters)
       * **[Installation Guide](#installation-guide)**
+      * [Performance Tuning](#performance-tuning)
       * [Troubleshooting](#troubleshooting)
       * [Additional Information](#additional-information)
       * [Credits](#credits)
@@ -114,6 +115,7 @@ Environment variables can be set by adding one or more arguments `-e "<VAR>=<VAL
 |`VNC_PASSWORD`| Password needed to connect to the application's GUI.  See the [VNC Password](#vnc-password) section for more details. | (unset) |
 |`X11VNC_EXTRA_OPTS`| Extra options to pass to the x11vnc server running in the Docker container.  **WARNING**: For advanced users. Do not use unless you know what you are doing. | (unset) |
 |`ENABLE_CJK_FONT`| When set to `1`, open-source computer font `WenQuanYi Zen Hei` is installed.  This font contains a large range of Chinese/Japanese/Korean characters. | `0` |
+|`OPTIMIZE_NETWORK`| When `true`, applies TCP and Wine network tuning at startup to improve upload throughput. Set to `false` to disable. See [Performance Tuning](#performance-tuning). | `true` |
 |`STARTUP_LOGFILE`| The location for writing logs of the startup script, responsible for installing and starting the Backblaze app.  The default path is also backed up to Backblaze. | `/config/wine/dosdevices/c:/backblaze-wine-startapp.log` |
 
 ## Config Directory
@@ -324,6 +326,73 @@ container.
 1. The Installation is done 🎉
 
 1. Buy a license for your Computer in the Backblaze Dashboard, just like for a normal Windows/Mac installation
+
+## Performance Tuning
+
+Upload throughput can be significantly improved by tuning the network stack. The container includes automatic optimizations (controlled by `OPTIMIZE_NETWORK=true`), but some settings require Docker flags to take effect.
+
+### Recommended Docker Run Flags
+
+For maximum upload throughput, add these flags to your `docker run` command:
+
+````shell
+docker run \
+    --network host \
+    --sysctl net.core.wmem_max=16777216 \
+    --sysctl net.core.rmem_max=16777216 \
+    --sysctl net.ipv4.tcp_wmem="4096 262144 16777216" \
+    --sysctl net.ipv4.tcp_rmem="4096 262144 16777216" \
+    --sysctl net.ipv4.tcp_slow_start_after_idle=0 \
+    --sysctl net.ipv4.tcp_mtu_probing=1 \
+    -e APP_NICENESS=-10 \
+    --cap-add=SYS_NICE \
+    --init \
+    -v "[backup folder]/:/drive_d/" \
+    -v "[config folder]/:/config/" \
+    tessypowder/backblaze-personal-wine:latest
+````
+
+### What Each Setting Does
+
+| Setting | Impact |
+|---------|--------|
+| `--network host` | Bypasses Docker's userspace network proxy and NAT. Eliminates per-packet overhead and can improve throughput substantially. **Note**: the container shares the host's network namespace, so port mapping (`-p`) is not used — access the GUI directly on ports 5800/5900. |
+| `--sysctl net.core.wmem_max=16777216` | Raises the max socket send buffer to 16MB (default ~212KB). Allows TCP to keep more data in flight on high-bandwidth or high-latency connections. |
+| `--sysctl net.ipv4.tcp_wmem=...` | Widens TCP send buffer autotuning range. The default max of ~6MB is often too small for WAN uploads. |
+| `--sysctl net.ipv4.tcp_slow_start_after_idle=0` | Prevents TCP from resetting its congestion window after idle periods. Backblaze uploads in 10MB chunks with pauses between them — without this, every chunk starts slow. |
+| `--sysctl net.ipv4.tcp_mtu_probing=1` | Discovers the optimal packet size for the network path, avoiding fragmentation-related throughput loss. |
+| `APP_NICENESS=-10` | Gives the Backblaze process higher CPU scheduling priority. Requires `--cap-add=SYS_NICE`. |
+
+### BBR Congestion Control
+
+If your host kernel supports BBR (`tcp_bbr` module), the container will automatically enable it. BBR typically outperforms the default CUBIC algorithm for upload workloads. To verify BBR is available on your host:
+
+````shell
+sysctl net.ipv4.tcp_available_congestion_control
+````
+
+If BBR is not listed, you can load it on the host with:
+
+````shell
+sudo modprobe tcp_bbr
+````
+
+### Volume Mount Options
+
+For backup drives containing many files, mounting with `noatime` reduces filesystem overhead:
+
+````shell
+-v "[backup folder]/:/drive_d/:noatime"
+````
+
+### Built-in Optimizations
+
+When `OPTIMIZE_NETWORK=true` (the default), the container automatically:
+- Attempts to apply TCP buffer and congestion control tuning via sysctl (requires privileges)
+- Sets Wine registry keys to increase Winsock default send/receive buffer sizes to 256KB
+- Enables TCP window scaling and Selective ACK in Wine's TCP/IP parameters
+
+These run at startup and log their results. Check the container logs to see which settings were successfully applied.
 
 ## Troubleshooting
 
