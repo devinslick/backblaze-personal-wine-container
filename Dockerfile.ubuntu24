@@ -1,0 +1,36 @@
+FROM jlesage/baseimage-gui:ubuntu-24.04-v4@sha256:010a223df8a046018d5dfff5556ad62c50a9df23eab839aea4d2dfb24bdc6264
+
+ENV WINEPREFIX="/config/wine/"
+ENV LANG="en_US.UTF-8"
+ENV APP_NAME="Backblaze Personal Backup"
+ENV FORCE_LATEST_UPDATE="true"
+ENV DISABLE_AUTOUPDATE="true"
+ENV DISABLE_VIRTUAL_DESKTOP="false"
+ENV DISPLAY_WIDTH="900"
+ENV DISPLAY_HEIGHT="700"
+ENV WINEDEBUG="-all"
+ENV DISPLAY=":0"
+
+RUN dpkg --add-architecture i386 && \
+    apt-get update && \
+    apt-get install -y curl software-properties-common gnupg2 winbind xvfb 7zip cabextract && \
+    install -d -m 0755 /etc/apt/keyrings && \
+    curl -fsSL https://dl.winehq.org/wine-builds/winehq.key -o /etc/apt/keyrings/winehq-archive.key && \
+    curl -fsSL https://dl.winehq.org/wine-builds/ubuntu/dists/noble/winehq-noble.sources -o /etc/apt/sources.list.d/winehq-noble.sources && \
+    apt-get update && \
+    apt-get install -y --install-recommends winehq-stable=11.0* && \
+    apt-get install -y winetricks && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y locales && \
+    sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen && \
+    dpkg-reconfigure --frontend=noninteractive locales && \
+    update-locale LANG=en_US.UTF-8 && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+EXPOSE 5900
+
+HEALTHCHECK --interval=60s --timeout=5s --start-period=120s --retries=3 \
+    CMD ss -ltn | grep -q ':5900' || exit 1
+
+COPY rootfs/ /
+RUN chmod +x /startapp.sh

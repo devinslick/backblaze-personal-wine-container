@@ -6,6 +6,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## 1.12
+
+### Changed
+- Upgraded base image from Ubuntu 22.04 to Ubuntu 24.04 LTS
+- Upgraded Wine from 10.0 to 11.0 stable
+- Replaced deprecated `apt-key` with modern `/etc/apt/keyrings` signed-by method
+- Upgraded GitHub Actions (`build-push-action` v6, `metadata-action` v6, GHA cache backend)
+- Replaced `meeDamian/sync-readme` with `peter-evans/dockerhub-description@v5`
+- Standardized Dockerfile ENV syntax to quoted form
+- Added apt cache cleanup to reduce image size
+- Added Docker HEALTHCHECK instruction
+- Hardened startapp.sh (`set -euo pipefail`, `curl --fail`, fixed fall-through bug, reduced duplicate HTTP requests)
+
+### Removed
+- Dropped Ubuntu 18.04 image (EOL since April 2023)
+- Dropped Ubuntu 20.04 image (consolidating to single Ubuntu 24.04 build)
+
 ## 1.11
 
 ### Changed

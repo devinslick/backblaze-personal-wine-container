@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 set -x
 
 # Define globals
@@ -40,7 +41,7 @@ do
 done
 
 # Set Virtual Desktop
-cd $WINEPREFIX
+cd "$WINEPREFIX"
 if [ "$DISABLE_VIRTUAL_DESKTOP" = "true" ]; then
     log_message "WINE: DISABLE_VIRTUAL_DESKTOP=true - Virtual Desktop mode will be disabled"
     winetricks vd=off
@@ -79,10 +80,10 @@ fetch_and_install() {
     cd "$install_exe_path" || handle_error "INSTALLER: can't navigate to $install_exe_path"
     if [ "$FORCE_LATEST_UPDATE" = "true" ]; then
         log_message "INSTALLER: FORCE_LATEST_UPDATE=true - downloading latest version"
-        curl -L "https://www.backblaze.com/win32/install_backblaze.exe" --output "install_backblaze.exe"
+        curl -fL "https://www.backblaze.com/win32/install_backblaze.exe" --output "install_backblaze.exe"
     else
         log_message "INSTALLER: FORCE_LATEST_UPDATE=false - downloading pinned version $pinned_bz_version from archive.org"
-        curl -A "$custom_user_agent" -L "$pinned_bz_version_url" --output "install_backblaze.exe" || handle_error "INSTALLER: error downloading from $pinned_bz_version_url"
+        curl -fA "$custom_user_agent" -L "$pinned_bz_version_url" --output "install_backblaze.exe" || handle_error "INSTALLER: error downloading from $pinned_bz_version_url"
     fi
     log_message "INSTALLER: Starting install_backblaze.exe"
     WINEARCH="$WINEARCH" WINEPREFIX="$WINEPREFIX" wine64 "install_backblaze.exe" || handle_error "INSTALLER: Failed to install Backblaze"
@@ -90,7 +91,9 @@ fetch_and_install() {
 }
 
 start_app() {
-    log_message "STARTAPP: Starting Backblaze version $(cat "$local_version_file")"
+    local version
+    version=$(cat "$local_version_file" 2>/dev/null || echo "unknown")
+    log_message "STARTAPP: Starting Backblaze version $version"
     wine64 "${WINEPREFIX}drive_c/Program Files (x86)/Backblaze/bzbui.exe" -noquiet &
     sleep infinity
 }
@@ -98,13 +101,11 @@ start_app() {
 if [ -f "${WINEPREFIX}drive_c/Program Files (x86)/Backblaze/bzbui.exe" ]; then
     check_url_validity() {
         url="$1"
-        if http_code=$(curl -s -o /dev/null -w "%{http_code}" "$url"); then
-            if [ "$http_code" -eq 200 ]; then
-                content_type=$(curl -s -I "$url" | grep -i content-type | cut -d ':' -f2)
-                if echo "$content_type" | grep -q "xml"; then
-                    return 0 # Valid XML content found
-                fi
-            fi
+        headers=$(curl -sI -o /dev/null -w "%{http_code}\n%{content_type}" "$url") || return 1
+        http_code=$(echo "$headers" | head -1)
+        content_type=$(echo "$headers" | tail -1)
+        if [ "$http_code" -eq 200 ] && echo "$content_type" | grep -q "xml"; then
+            return 0 # Valid XML content found
         fi
         return 1 # Invalid or unavailable content
     }
@@ -126,6 +127,7 @@ if [ -f "${WINEPREFIX}drive_c/Program Files (x86)/Backblaze/bzbui.exe" ]; then
     if [ "$DISABLE_AUTOUPDATE" = "true" ]; then
         log_message "UPDATER: DISABLE_AUTOUPDATE=true, Auto-updates are disabled. Starting Backblaze without updating."
         start_app
+        exit 0
     fi
 
     # Update process for force_latest_update set to true or not set

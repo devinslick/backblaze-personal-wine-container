@@ -6,7 +6,7 @@
   "packageRules": [
     {
       "matchPackageNames": [
-        "jlesage/baseimage-gui",
+        "jlesage/baseimage-gui"
       ],
       "matchUpdateTypes": [
         "digest"
