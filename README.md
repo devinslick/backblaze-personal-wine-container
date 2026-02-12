@@ -1,7 +1,7 @@
 ![Github License](https://img.shields.io/github/license/JonathanTreffler/backblaze-personal-wine-container?style=flat-square)
 ![Docker Pulls](https://img.shields.io/docker/pulls/tessypowder/backblaze-personal-wine?style=flat-square)
 ![Docker Image Size](https://img.shields.io/docker/image-size/tessypowder/backblaze-personal-wine/latest?style=flat-square)
-![Maintenance](https://img.shields.io/maintenance/yes/2024?style=flat-square)
+![Maintenance](https://img.shields.io/maintenance/yes/2026?style=flat-square)
 ![GitHub last commit](https://img.shields.io/github/last-commit/JonathanTreffler/backblaze-personal-wine-container?style=flat-square)
 ![GitHub contributors](https://img.shields.io/github/contributors/JonathanTreffler/backblaze-personal-wine-container?style=flat-square)
 [![Stand With Ukraine](https://raw.githubusercontent.com/vshymanskyy/StandWithUkraine/main/badges/StandWithUkraine.svg)](https://stand-with-ukraine.pp.ua)
@@ -72,14 +72,10 @@ Here are the main components of this image:
 
 | Tag | Description |
 |-----|-------------|
-| latest | Latest stable version of the image based on ubuntu 22 |
-| ubuntu22 | Latest stable version of the image based on ubuntu 22 |
-| ubuntu20 | Latest stable version of the image based on ubuntu 20 **(Not recommended anymore)** |
-| ubuntu18 | Latest stable version of the image based on ubuntu 18 **(End of Life - unmaintained)** |
-| v1.x | Versioned stable releases based on ubuntu 22 |
-| main | Automatic build of the main branch (may be unstable) based on ubuntu 22 |
-
-There are no versioned ubuntu20 or ubuntu18 builds.
+| latest | Latest stable version of the image based on Ubuntu 24.04 |
+| ubuntu24 | Latest stable version of the image based on Ubuntu 24.04 |
+| v1.x | Versioned stable releases based on Ubuntu 24.04 |
+| main | Automatic build of the main branch (may be unstable) based on Ubuntu 24.04 |
 
 ### Platforms
 
