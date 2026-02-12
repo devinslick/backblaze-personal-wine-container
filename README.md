@@ -16,7 +16,7 @@ It runs the Backblaze client and starts a virtual X server and a VNC server with
 
 ## Table of Content
 
-   * **[Backblaze Personal Wine Container](#backblaze-personal-wine-container)**
+   * **[Backblaze Personal Wine Community Container](#backblaze-personal-wine-community-container)**
       * [Table of Content](#table-of-content)
       * [Project Status](#project-status)
       * [Docker Images](#docker-images)
@@ -34,6 +34,7 @@ It runs the Backblaze client and starts a virtual X server and a VNC server with
          * [VNC Password](#vnc-password)
          * [DH Parameters](#dh-parameters)
       * **[Installation Guide](#installation-guide)**
+      * [Troubleshooting](#troubleshooting)
       * [Additional Information](#additional-information)
       * [Credits](#credits)
 
@@ -99,10 +100,10 @@ Environment variables can be set by adding one or more arguments `-e "<VAR>=<VAL
 | Variable       | Description                                  | Default |
 |----------------|----------------------------------------------|---------|
 |`DISABLE_VIRTUAL_DESKTOP` | Disables Wine's Virtual Desktop Mode | false |
-|`DISABLE_AUTOUPDATE` | Disables the auto-update of the backblaze client to the latest known-good version at the time of the docker version release | true |
-|`FORCE_LATEST_UPDATE`| Forces the auto updater to download the newest version of the backblaze client from the backblaze servers instead of a known-good version from the Internet Archive | true |
+|`DISABLE_AUTOUPDATE` | Disables the auto-update check at container startup. When `true`, the currently installed Backblaze version is used as-is. | true |
+|`FORCE_LATEST_UPDATE`| When auto-update is enabled, downloads the newest version of the Backblaze client directly from Backblaze servers. Currently always forced to `true` because the previously pinned archive.org source was disabled by Backblaze. | true |
 |`UMASK`| Mask that controls how file permissions are set for newly created files. The value of the mask is in octal notation.  By default, this variable is not set and the default umask of `022` is used, meaning that newly created files are readable by everyone, but only writable by the owner. See the following online umask calculator: http://wintelguy.com/umask-calc.pl | (unset) |
-|`TZ`| [TimeZone] of the container.  Timezone can also be set by mapping `/etc/localtime` between the host and the container. | `Etc/UTC` |
+|`TZ`| [TimeZone](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones) of the container.  Timezone can also be set by mapping `/etc/localtime` between the host and the container. | `Etc/UTC` |
 |`APP_NICENESS`| Priority at which the application should run.  A niceness value of -20 is the highest priority and 19 is the lowest priority.  By default, niceness is not set, meaning that the default niceness of 0 is used.  **NOTE**: A negative niceness (priority increase) requires additional permissions.  In this case, the container should be run with the docker option `--cap-add=SYS_NICE`. | (unset) |
 |`USER_ID`| When mounting docker-volumes, permission issues can arise between the docker host and the container. You can pass the User_ID permissions to the container with this variable. | `1000` |
 |`GROUP_ID`| When mounting docker-volumes, permission issues can arise between the docker host and the container. You can pass the Group_ID permissions to the container with this variable. | `1000` |
@@ -120,7 +121,7 @@ Inside the container, wine's configuration and with it Backblaze's configuration
 `/config/wine/` directory.
 
 This directory is also used to store the VNC password.  See the
-[VNC Pasword](#vnc-password) section for more details.
+[VNC Password](#vnc-password) section for more details.
 
 ## Ports
 
@@ -288,7 +289,7 @@ container.
     ````
 
 1. Open the Web Interface (on the port you specified in the docker run command, in this example 8080):
-2. You may see wine being updated, this will take a couple of minutes
+1. You may see wine being updated, this will take a couple of minutes
    
    ![image](https://github.com/xela1/backblaze-personal-wine-container/assets/357319/4f401b31-8d1d-40fe-85a3-ec4637c23bf5)
 
@@ -421,7 +422,7 @@ This was originally developed by @Atemu (https://github.com/Atemu/backblaze-pers
 
 The Backblaze name, logo and application is the property of Backblaze, Inc.
 
-This docker does not redistribute the Backblaze application. It gets downloaded from the official Backblaze Servers or Internet Archive during the install process.
+This docker does not redistribute the Backblaze application. It gets downloaded from the official Backblaze servers during the install process.
 
 This docker image is based on @jlesage 's excellent [base image](https://github.com/jlesage/docker-baseimage-gui).
 
