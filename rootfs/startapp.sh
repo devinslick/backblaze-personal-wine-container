@@ -14,8 +14,8 @@ pinned_bz_version=$(sed -n '1p' "$pinned_bz_version_file")
 pinned_bz_version_url=$(sed -n '2p' "$pinned_bz_version_file")
 
 export FORCE_LATEST_UPDATE="true" #disable pinned version since URL is excluded from archive.org
-export WINEARCH="win64"
-export WINEDLLOVERRIDES="mscoree=" # Disable Mono installation
+export WINEARCH="win32"
+export WINEDLLOVERRIDES="mscoree=" # Disable Mono; use dotnet48 instead
 
 log_message() {
     echo "$(date): $1" >> "$log_file"
@@ -25,9 +25,8 @@ log_message() {
 if [ ! -f "${WINEPREFIX}system.reg" ]; then
     echo "WINE: Wine not initialized, initializing"
     wineboot -i
-    WINETRICKS_ACCEPT_EULA=1 winetricks -q -f dotnet48
-    # Set Windows version to Windows 10
-    WINETRICKS_ACCEPT_EULA=1 winetricks -q win10
+    # Install .NET Framework 4.8 and set Windows version to Windows 10
+    WINETRICKS_ACCEPT_EULA=1 winetricks -q -f dotnet48 win10
     log_message "WINE: Initialization done and set to Windows 10"
 fi
 
@@ -85,20 +84,36 @@ fetch_and_install() {
         log_message "INSTALLER: FORCE_LATEST_UPDATE=false - downloading pinned version $pinned_bz_version from archive.org"
         curl -fA "$custom_user_agent" -L "$pinned_bz_version_url" --output "install_backblaze.exe" || handle_error "INSTALLER: error downloading from $pinned_bz_version_url"
     fi
-    log_message "INSTALLER: Starting install_backblaze.exe"
-    WINEARCH="$WINEARCH" WINEPREFIX="$WINEPREFIX" wine64 "install_backblaze.exe" || handle_error "INSTALLER: Failed to install Backblaze"
-
+    # Extract and install manually: the MSI's bzdoinstall.exe post-install
+    # step fails under Wine, so we extract files directly with 7z instead.
+    log_message "INSTALLER: Extracting install_backblaze.exe"
+    local extract_dir
+    extract_dir=$(mktemp -d)
+    7z x -o"$extract_dir" "install_backblaze.exe" -y > /dev/null || handle_error "INSTALLER: Failed to extract install_backblaze.exe"
+    local msi_file
+    msi_file=$(find "$extract_dir" -name "*.msi" | head -1)
+    if [ -z "$msi_file" ]; then
+        handle_error "INSTALLER: No MSI found in extracted files"
+    fi
+    local msi_extract_dir
+    msi_extract_dir=$(mktemp -d)
+    7z x -o"$msi_extract_dir" "$msi_file" -y > /dev/null || handle_error "INSTALLER: Failed to extract MSI"
+    local install_dir="${WINEPREFIX}drive_c/Program Files/Backblaze"
+    mkdir -p "$install_dir"
+    cp -r "$msi_extract_dir"/* "$install_dir"/
+    rm -rf "$extract_dir" "$msi_extract_dir"
+    log_message "INSTALLER: Backblaze files installed to $install_dir"
 }
 
 start_app() {
     local version
     version=$(cat "$local_version_file" 2>/dev/null || echo "unknown")
     log_message "STARTAPP: Starting Backblaze version $version"
-    wine64 "${WINEPREFIX}drive_c/Program Files (x86)/Backblaze/bzbui.exe" -noquiet &
+    wine "${WINEPREFIX}drive_c/Program Files/Backblaze/bzbui.exe" -noquiet &
     sleep infinity
 }
 
-if [ -f "${WINEPREFIX}drive_c/Program Files (x86)/Backblaze/bzbui.exe" ]; then
+if [ -f "${WINEPREFIX}drive_c/Program Files/Backblaze/bzbui.exe" ]; then
     check_url_validity() {
         url="$1"
         headers=$(curl -sI -o /dev/null -w "%{http_code}\n%{content_type}" "$url") || return 1
