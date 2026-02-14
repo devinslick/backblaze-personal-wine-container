@@ -1,5 +1,4 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/bin/bash
 set -x
 
 # Define globals
@@ -14,8 +13,8 @@ pinned_bz_version=$(sed -n '1p' "$pinned_bz_version_file")
 pinned_bz_version_url=$(sed -n '2p' "$pinned_bz_version_file")
 
 export FORCE_LATEST_UPDATE="true" #disable pinned version since URL is excluded from archive.org
-export WINEARCH="win32"
-export WINEDLLOVERRIDES="mscoree=" # Disable Mono; use dotnet48 instead
+export WINEARCH="win64"
+export WINEDLLOVERRIDES="mscoree=" # Disable Mono installation
 
 log_message() {
     echo "$(date): $1" >> "$log_file"
@@ -25,10 +24,19 @@ log_message() {
 if [ ! -f "${WINEPREFIX}system.reg" ]; then
     echo "WINE: Wine not initialized, initializing"
     wineboot -i
-    # Install .NET Framework 4.8 and set Windows version to Windows 10
-    WINETRICKS_ACCEPT_EULA=1 winetricks -q -f dotnet48 win10
+    WINETRICKS_ACCEPT_EULA=1 winetricks -q -f dotnet48
+    # Set Windows version to Windows 10
+    WINETRICKS_ACCEPT_EULA=1 winetricks -q win10
     log_message "WINE: Initialization done and set to Windows 10"
 fi
+
+# Set Windows computer name (generates WIN-<random> if COMPUTER_NAME is empty)
+if [ -z "$COMPUTER_NAME" ]; then
+    COMPUTER_NAME="WIN-$(od -An -tx1 -N4 /dev/urandom | tr -d ' \n' | tr '[:lower:]' '[:upper:]')"
+fi
+wine reg add 'HKLM\System\CurrentControlSet\Control\ComputerName\ComputerName' /v ComputerName /t REG_SZ /d "$COMPUTER_NAME" /f > /dev/null 2>&1
+wine reg add 'HKLM\System\CurrentControlSet\Control\ComputerName\ActiveComputerName' /v ComputerName /t REG_SZ /d "$COMPUTER_NAME" /f > /dev/null 2>&1
+log_message "HOSTNAME: Set Windows computer name to $COMPUTER_NAME"
 
 #Configure Extra Mounts
 for x in {d..z}
@@ -40,7 +48,7 @@ do
 done
 
 # Set Virtual Desktop
-cd "$WINEPREFIX"
+cd $WINEPREFIX
 if [ "$DISABLE_VIRTUAL_DESKTOP" = "true" ]; then
     log_message "WINE: DISABLE_VIRTUAL_DESKTOP=true - Virtual Desktop mode will be disabled"
     winetricks vd=off
@@ -79,48 +87,54 @@ fetch_and_install() {
     cd "$install_exe_path" || handle_error "INSTALLER: can't navigate to $install_exe_path"
     if [ "$FORCE_LATEST_UPDATE" = "true" ]; then
         log_message "INSTALLER: FORCE_LATEST_UPDATE=true - downloading latest version"
-        curl -fL "https://www.backblaze.com/win32/install_backblaze.exe" --output "install_backblaze.exe"
+        curl -L "https://www.backblaze.com/win32/install_backblaze.exe" --output "install_backblaze.exe"
     else
         log_message "INSTALLER: FORCE_LATEST_UPDATE=false - downloading pinned version $pinned_bz_version from archive.org"
-        curl -fA "$custom_user_agent" -L "$pinned_bz_version_url" --output "install_backblaze.exe" || handle_error "INSTALLER: error downloading from $pinned_bz_version_url"
+        curl -A "$custom_user_agent" -L "$pinned_bz_version_url" --output "install_backblaze.exe" || handle_error "INSTALLER: error downloading from $pinned_bz_version_url"
     fi
-    # Extract and install manually: the MSI's bzdoinstall.exe post-install
-    # step fails under Wine, so we extract files directly with 7z instead.
-    log_message "INSTALLER: Extracting install_backblaze.exe"
-    local extract_dir
-    extract_dir=$(mktemp -d)
-    7z x -o"$extract_dir" "install_backblaze.exe" -y > /dev/null || handle_error "INSTALLER: Failed to extract install_backblaze.exe"
-    local msi_file
-    msi_file=$(find "$extract_dir" -name "*.msi" | head -1)
-    if [ -z "$msi_file" ]; then
-        handle_error "INSTALLER: No MSI found in extracted files"
+
+    # Extract application files from the self-extractor using 7z.
+    # The self-extractor gets stuck at a 2x2 pixel window under Wine 11.0's
+    # wow64 mode, so we extract with 7z and place files directly.
+    # bzbui.exe handles initial setup (email/password) when launched without
+    # an existing bzinstall.xml, so bzdoinstall.exe is not needed.
+    local extract_dir="${install_exe_path}bz_extract"
+    local install_dir="${WINEPREFIX}drive_c/Program Files (x86)/Backblaze"
+    rm -rf "$extract_dir"
+    mkdir -p "$extract_dir"
+    log_message "INSTALLER: Extracting files from install_backblaze.exe"
+    7z x -o"$extract_dir" "${install_exe_path}install_backblaze.exe" -y > /dev/null 2>&1 || handle_error "INSTALLER: Failed to extract installer"
+
+    if [ ! -f "$extract_dir/bzbui.exe" ]; then
+        handle_error "INSTALLER: bzbui.exe not found in extracted files"
+        return 1
     fi
-    local msi_extract_dir
-    msi_extract_dir=$(mktemp -d)
-    7z x -o"$msi_extract_dir" "$msi_file" -y > /dev/null || handle_error "INSTALLER: Failed to extract MSI"
-    local install_dir="${WINEPREFIX}drive_c/Program Files/Backblaze"
+
+    # Copy extracted files to the Backblaze installation directory
     mkdir -p "$install_dir"
-    cp -r "$msi_extract_dir"/* "$install_dir"/
-    rm -rf "$extract_dir" "$msi_extract_dir"
-    log_message "INSTALLER: Backblaze files installed to $install_dir"
+    cp -a "$extract_dir"/* "$install_dir/"
+    log_message "INSTALLER: Files installed to $install_dir"
+
+    # Clean up
+    rm -rf "$extract_dir"
 }
 
 start_app() {
-    local version
-    version=$(cat "$local_version_file" 2>/dev/null || echo "unknown")
-    log_message "STARTAPP: Starting Backblaze version $version"
-    wine "${WINEPREFIX}drive_c/Program Files/Backblaze/bzbui.exe" -noquiet &
+    log_message "STARTAPP: Starting Backblaze version $(cat "$local_version_file" 2>/dev/null || echo 'unknown')"
+    wine "${WINEPREFIX}drive_c/Program Files (x86)/Backblaze/bzbui.exe" -noquiet &
     sleep infinity
 }
 
-if [ -f "${WINEPREFIX}drive_c/Program Files/Backblaze/bzbui.exe" ]; then
+if [ -f "${WINEPREFIX}drive_c/Program Files (x86)/Backblaze/bzbui.exe" ]; then
     check_url_validity() {
         url="$1"
-        headers=$(curl -sI -o /dev/null -w "%{http_code}\n%{content_type}" "$url") || return 1
-        http_code=$(echo "$headers" | head -1)
-        content_type=$(echo "$headers" | tail -1)
-        if [ "$http_code" -eq 200 ] && echo "$content_type" | grep -q "xml"; then
-            return 0 # Valid XML content found
+        if http_code=$(curl -s -o /dev/null -w "%{http_code}" "$url"); then
+            if [ "$http_code" -eq 200 ]; then
+                content_type=$(curl -s -I "$url" | grep -i content-type | cut -d ':' -f2)
+                if echo "$content_type" | grep -q "xml"; then
+                    return 0 # Valid XML content found
+                fi
+            fi
         fi
         return 1 # Invalid or unavailable content
     }
@@ -142,7 +156,6 @@ if [ -f "${WINEPREFIX}drive_c/Program Files/Backblaze/bzbui.exe" ]; then
     if [ "$DISABLE_AUTOUPDATE" = "true" ]; then
         log_message "UPDATER: DISABLE_AUTOUPDATE=true, Auto-updates are disabled. Starting Backblaze without updating."
         start_app
-        exit 0
     fi
 
     # Update process for force_latest_update set to true or not set
