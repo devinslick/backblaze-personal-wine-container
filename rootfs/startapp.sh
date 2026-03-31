@@ -94,10 +94,12 @@ fetch_and_install() {
     fi
 
     # Extract application files from the self-extractor using 7z.
-    # The self-extractor gets stuck at a 2x2 pixel window under Wine 11.0's
-    # wow64 mode, so we extract with 7z and place files directly.
-    # bzbui.exe handles initial setup (email/password) when launched without
-    # an existing bzinstall.xml, so bzdoinstall.exe is not needed.
+    # We extract directly rather than running the installer under Wine because
+    # bzdoinstall.exe (the full installer) would attempt an interactive
+    # Backblaze account setup; bzbui.exe handles first-run setup (email/
+    # password) when launched without an existing bzinstall.xml.
+    # Wine 11's improved WoW64 emulation means the extracted 32-bit
+    # Backblaze binaries (bzbui.exe, etc.) run reliably in the win64 prefix.
     local extract_dir="${install_exe_path}bz_extract"
     local install_dir="${WINEPREFIX}drive_c/Program Files (x86)/Backblaze"
     rm -rf "$extract_dir"
