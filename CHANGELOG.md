@@ -6,6 +6,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Updated Wine dependency to 11.0 stable; Wine 11's improved WoW64 emulation
+  allows 32-bit Backblaze binaries (bzbui.exe, etc.) to run reliably in a
+  win64 prefix without additional compatibility shims
+- Removed unused `cabextract` package — cabinet-file extraction is handled
+  natively by Wine 11 via `msiexec`
+- Clarified 7z-based installer extraction rationale: preferred to avoid
+  running `bzdoinstall.exe` (interactive Backblaze account setup), not merely
+  a WoW64 bug workaround
+
 ## 1.12
 
 ### Changed
